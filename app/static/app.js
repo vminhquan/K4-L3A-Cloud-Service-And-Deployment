@@ -139,14 +139,21 @@ document.addEventListener('DOMContentLoaded', () => {
     line.className = 'log-line';
 
     let tagClass = 'info';
-    if (level === 'warn') tagClass = 'warn';
-    if (level === 'error') tagClass = 'error';
+    let tagText = 'THÔNG TIN';
+    if (level === 'warn') {
+      tagClass = 'warn';
+      tagText = 'CẢNH BÁO';
+    }
+    if (level === 'error') {
+      tagClass = 'error';
+      tagText = 'LỖI';
+    }
 
     // Format JSON with simple highlights
     const jsonStr = JSON.stringify(payload);
     line.innerHTML = `
       <span class="timestamp">[${timestamp.slice(11, 19)}]</span>
-      <span class="tag ${tagClass}">${level.toUpperCase()}</span>
+      <span class="tag ${tagClass}">${tagText}</span>
       <span class="json-content">${highlightJson(jsonStr)}</span>
     `;
 
@@ -241,29 +248,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
       } else if (status === 401) {
         appendErrorMessage(
-          'HTTP 401 Unauthorized: Invalid or missing API key',
-          'Khóa API không hợp lệ hoặc thiếu header X-API-Key. Server đã so sánh bằng secrets.compare_digest() để triệt tiêu lỗ hổng timing attack.'
+          'HTTP 401 Không được phép (Unauthorized): Khóa API không hợp lệ hoặc bị thiếu',
+          'Khóa xác thực API không hợp lệ hoặc thiếu tiêu đề X-API-Key. Máy chủ đã đối soát bằng thuật toán secrets.compare_digest() để so sánh hằng số thời gian (constant-time), triệt tiêu hoàn toàn lỗ hổng timing attack.'
         );
-        showToast('401 Unauthorized: API Key không đúng', 'error');
+        showToast('401 Không được phép: Khóa API không đúng', 'error');
         appendStructuredLog('auth_failed', 'error', { status: 401, detail: data.detail });
 
       } else if (status === 429) {
         appendErrorMessage(
-          'HTTP 429 Too Many Requests: Rate limit exceeded',
-          'Cửa sổ trượt 60 giây (Sliding Window Redis ZSET) phát hiện bạn đã vượt quá hạn mức 10 request/phút. Header Retry-After: 60.'
+          'HTTP 429 Quá nhiều yêu cầu (Too Many Requests): Vượt quá hạn mức tần suất',
+          'Thuật toán Cửa sổ trượt 60 giây (Sliding Window Redis ZSET) phát hiện bạn đã vượt quá hạn mức 10 yêu cầu/phút. Tiêu đề phản hồi có chứa Retry-After: 60.'
         );
-        showToast('429 Too Many Requests: Quá tốc độ', 'warn');
-        rateLimitCount.textContent = '10 / 10 (BLOCKED)';
+        showToast('429 Quá nhiều yêu cầu: Vượt tốc độ cho phép', 'warn');
+        rateLimitCount.textContent = '10 / 10 (ĐÃ CHẶN)';
         rateLimitBar.classList.add('danger');
         rateLimitBar.style.width = '100%';
         appendStructuredLog('rate_limit_exceeded', 'warn', { user_id: userId, limit: 10 });
 
       } else if (status === 402) {
         appendErrorMessage(
-          'HTTP 402 Payment Required: Monthly budget exceeded',
-          'Cost Guard đã chặn request trước khi gọi LLM vì ngân sách tháng của user đã vượt $10.00 USD.'
+          'HTTP 402 Yêu cầu thanh toán (Payment Required): Đã vượt quá ngân sách tháng',
+          'Hàng rào chi phí (Cost Guard) đã chủ động chặn yêu cầu trước khi gọi mô hình AI vì ngân sách tháng của tài khoản đã vượt mức cho phép ($10.00 USD).'
         );
-        showToast('402 Payment Required: Hết ngân sách', 'error');
+        showToast('402 Yêu cầu thanh toán: Đã hết ngân sách', 'error');
         appendStructuredLog('budget_exceeded', 'error', { user_id: userId, max_budget: 10.0 });
 
       } else {
@@ -273,8 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       removeLoadingBubble(loadingId);
-      appendErrorMessage('Connection Error', `Không thể kết nối tới server: ${err.message}`);
-      showToast('Không kết nối được server', 'error');
+      appendErrorMessage('Lỗi Kết Nối Máy Chủ', `Không thể kết nối tới dịch vụ: ${err.message}`);
+      showToast('Không kết nối được máy chủ', 'error');
     }
 
     chatHistory.scrollTop = chatHistory.scrollHeight;
@@ -300,9 +307,9 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="chat-bubble">${formatMarkdown(text)}</div>
       <div class="message-meta">
         <span class="meta-pill cost">$${(meta.cost_usd || 0).toFixed(5)}</span>
-        <span class="meta-pill">${meta.tokens?.in || 0} in / ${meta.tokens?.out || 0} out</span>
-        <span class="meta-pill">history: ${meta.history_length}</span>
-        <span class="meta-pill">${meta.latency}ms</span>
+        <span class="meta-pill">${meta.tokens?.in || 0} vào / ${meta.tokens?.out || 0} ra</span>
+        <span class="meta-pill">Lịch sử: ${meta.history_length}</span>
+        <span class="meta-pill">Độ trễ: ${meta.latency}ms</span>
       </div>
     `;
     chatHistory.appendChild(div);
@@ -317,8 +324,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <p style="margin-top: 6px; font-size: 13px; color: var(--text-secondary);">${escapeHtml(detail)}</p>
       </div>
       <div class="message-meta">
-        <span class="meta-pill error">BLOCKED</span>
-        <span>Guardrail Protection</span>
+        <span class="meta-pill error">ĐÃ BỊ CHẶN</span>
+        <span>Hàng Rào Bảo Vệ An Toàn</span>
       </div>
     `;
     chatHistory.appendChild(div);
@@ -333,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     div.innerHTML = `
       <div class="chat-bubble" style="color: var(--text-muted);">
         <span class="pulse-dot" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span>
-        Đang xử lý pipeline (Auth ➔ RateLimit ➔ CostGuard ➔ RedisStore ➔ MockLLM)...
+        Đang xử lý qua các trạm kiểm soát (Xác thực ➔ Giới hạn tần suất ➔ Quản lý ngân sách ➔ Lưu vết Redis ➔ Gọi Trợ lý AI)...
       </div>
     `;
     chatHistory.appendChild(div);
@@ -357,14 +364,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (hRes.status === 200) {
         probeHealthBadge.className = 'probe-badge ok';
-        probeHealthBadge.textContent = '● 200 OK';
+        probeHealthBadge.textContent = '● 200 Bình Thường';
       } else {
         probeHealthBadge.className = 'probe-badge down';
-        probeHealthBadge.textContent = `● ${hRes.status} Down`;
+        probeHealthBadge.textContent = `● ${hRes.status} Lỗi Tiến Trình`;
       }
     } catch (e) {
       probeHealthBadge.className = 'probe-badge down';
-      probeHealthBadge.textContent = '● Offline';
+      probeHealthBadge.textContent = '● Ngoại Tuyến (Offline)';
       probeHealthJson.textContent = e.message;
     }
 
@@ -375,18 +382,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (rRes.status === 200) {
         probeReadyBadge.className = 'probe-badge ok';
-        probeReadyBadge.textContent = '● 200 Ready';
+        probeReadyBadge.textContent = '● 200 Đã Sẵn Sàng';
         healthPill.querySelector('.status-indicator').style.background = 'var(--accent-green)';
-        healthPillText.textContent = 'Probes 200 OK';
+        healthPillText.textContent = 'Hệ Thống Sẵn Sàng (200 OK)';
       } else {
         probeReadyBadge.className = 'probe-badge down';
-        probeReadyBadge.textContent = `● ${rRes.status} Not Ready`;
+        probeReadyBadge.textContent = `● ${rRes.status} Chưa Sẵn Sàng`;
         healthPill.querySelector('.status-indicator').style.background = 'var(--accent-red)';
-        healthPillText.textContent = `Ready: ${rRes.status}`;
+        healthPillText.textContent = `Chưa Sẵn Sàng: ${rRes.status}`;
       }
     } catch (e) {
       probeReadyBadge.className = 'probe-badge down';
-      probeReadyBadge.textContent = '● Offline';
+      probeReadyBadge.textContent = '● Ngoại Tuyến (Offline)';
       probeReadyJson.textContent = e.message;
     }
   }
@@ -397,32 +404,32 @@ document.addEventListener('DOMContentLoaded', () => {
   // Graceful shutdown simulator
   simulateSigtermBtn.addEventListener('click', () => {
     simulatedShutdown = true;
-    shutdownStatusBadge.textContent = 'SHUTTING DOWN (503)';
+    shutdownStatusBadge.textContent = 'ĐANG TẮT DẦN (503)';
     shutdownStatusBadge.style.background = 'rgba(255, 0, 85, 0.2)';
     shutdownStatusBadge.style.color = 'var(--accent-red)';
 
     probeHealthBadge.className = 'probe-badge down';
-    probeHealthBadge.textContent = '● 503 Shutting Down';
+    probeHealthBadge.textContent = '● 503 Đang Tắt Dần';
     probeHealthJson.textContent = JSON.stringify({ status: "shutting_down" }, null, 2);
 
     probeReadyBadge.className = 'probe-badge down';
-    probeReadyBadge.textContent = '● 503 Shutting Down';
+    probeReadyBadge.textContent = '● 503 Đang Tắt Dần';
     probeReadyJson.textContent = JSON.stringify({ status: "shutting_down" }, null, 2);
 
-    healthPillText.textContent = '503 Shutting Down';
+    healthPillText.textContent = '503 Đang Tắt Dần';
     healthPill.querySelector('.status-indicator').style.background = 'var(--accent-red)';
 
-    showToast('Mô phỏng SIGTERM: /health và /ready chuyển sang HTTP 503 để load balancer cắt traffic.', 'warn');
+    showToast('Mô phỏng tín hiệu SIGTERM: Các cổng /health và /ready chuyển sang HTTP 503 để bộ cân bằng tải lập tức ngắt tiếp nhận yêu cầu mới.', 'warn');
     appendStructuredLog('lifecycle_signal', 'warn', { signal: 'SIGTERM', action: 'rejecting_new_traffic' });
   });
 
   resetLifecycleBtn.addEventListener('click', () => {
     simulatedShutdown = false;
-    shutdownStatusBadge.textContent = 'RUNNING';
+    shutdownStatusBadge.textContent = 'ĐANG HOẠT ĐỘNG';
     shutdownStatusBadge.style.background = '#222';
     shutdownStatusBadge.style.color = '#888';
     checkProbes();
-    showToast('Khôi phục trạng thái hoạt động bình thường.', 'success');
+    showToast('Đã khôi phục trạng thái hoạt động bình thường.', 'success');
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -430,11 +437,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─────────────────────────────────────────────────────────────
   // Burst 12 requests
   simBurstBtn.addEventListener('click', async () => {
-    showToast('Đang bắn liên tục 12 request để kiểm tra Sliding Window 429...', 'info');
+    showToast('Đang gửi liên tục 12 yêu cầu để kiểm thử Cửa Sổ Trượt (Sliding Window HTTP 429)...', 'info');
     simBurstBtn.disabled = true;
 
     for (let i = 1; i <= 12; i++) {
-      questionInput.value = `Burst test câu hỏi #${i}`;
+      questionInput.value = `Kiểm thử quá tải câu hỏi #${i}`;
       await new Promise(r => setTimeout(r, 80));
       chatForm.dispatchEvent(new Event('submit'));
     }
@@ -447,8 +454,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Invalid Key
   simInvalidKeyBtn.addEventListener('click', () => {
     const oldKey = apiKeyInput.value;
-    apiKeyInput.value = 'invalid-secret-key-12345';
-    questionInput.value = 'Câu hỏi thử nghiệm với API key sai';
+    apiKeyInput.value = 'khoa-api-gia-mao-12345';
+    questionInput.value = 'Thử nghiệm bảo mật với khóa API không chính xác';
     chatForm.dispatchEvent(new Event('submit'));
 
     setTimeout(() => {
@@ -459,13 +466,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check Probes button
   simProbesBtn.addEventListener('click', () => {
     checkProbes();
-    showToast('Đã kiểm tra /health và /ready probes.', 'success');
+    showToast('Đã làm mới kết quả kiểm tra các cổng thăm dò /health và /ready.', 'success');
   });
 
   // Rate limit UI helper
   function incrementRateLimitUI() {
     requestsInWindow = Math.min(10, requestsInWindow + 1);
-    rateLimitCount.textContent = `${requestsInWindow} / 10 req`;
+    rateLimitCount.textContent = `${requestsInWindow} / 10 yêu cầu`;
     const pct = (requestsInWindow / 10) * 100;
     rateLimitBar.style.width = `${pct}%`;
 
@@ -478,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Auto decrement after 60s
     setTimeout(() => {
       requestsInWindow = Math.max(0, requestsInWindow - 1);
-      rateLimitCount.textContent = `${requestsInWindow} / 10 req`;
+      rateLimitCount.textContent = `${requestsInWindow} / 10 yêu cầu`;
       rateLimitBar.style.width = `${(requestsInWindow / 10) * 100}%`;
       if (requestsInWindow < 10) rateLimitBar.classList.remove('danger');
     }, 60000);

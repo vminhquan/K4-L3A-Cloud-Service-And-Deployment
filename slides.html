@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slide Thuyết Trình: Day 12 — Cloud Service & Deployment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --card-bg: #0a0a0a;
+      --card-surface: #111111;
+      --border: #222222;
+      --border-glow: #333333;
+      
+      --text-main: #f5f5f5;
+      --text-sub: #a1a1aa;
+      --text-muted: #71717a;
+
+      --blue: #0070f3;
+      --cyan: #00dfd8;
+      --green: #00e599;
+      --amber: #f5a623;
+      --red: #ff0055;
+      --purple: #7928ca;
+
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'Geist Mono', 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient lighting */
+    .ambient-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 50% 10%, rgba(0, 112, 243, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(121, 40, 202, 0.08) 0%, transparent 45%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 64px 64px, 64px 64px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Top Progress Bar */
+    .top-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan), var(--green));
+      width: 0%;
+      transition: width 350ms cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    /* Slide Deck Container */
+    .deck-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide {
+      position: absolute;
+      width: 90%;
+      max-width: 1200px;
+      height: 85%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.96) translateY(20px);
+      transition: all 400ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+    }
+
+    /* Slide header tags */
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+      width: fit-content;
+      font-family: var(--font-mono);
+    }
+
+    .slide-badge.blue {
+      background: rgba(0, 112, 243, 0.12);
+      color: var(--blue);
+      border: 1px solid rgba(0, 112, 243, 0.3);
+    }
+    .slide-badge.green {
+      background: rgba(0, 229, 153, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(0, 229, 153, 0.3);
+    }
+    .slide-badge.amber {
+      background: rgba(245, 166, 35, 0.12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 166, 35, 0.3);
+    }
+    .slide-badge.red {
+      background: rgba(255, 0, 85, 0.12);
+      color: var(--red);
+      border: 1px solid rgba(255, 0, 85, 0.3);
+    }
+    .slide-badge.purple {
+      background: rgba(121, 40, 202, 0.12);
+      color: var(--purple);
+      border: 1px solid rgba(121, 40, 202, 0.3);
+    }
+
+    h1.slide-title {
+      font-size: 46px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 14px;
+      background: linear-gradient(180deg, #ffffff 40%, #a1a1aa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.slide-subtitle {
+      font-size: 18px;
+      color: var(--text-sub);
+      max-width: 850px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    /* Grid cards inside slides */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .key-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      transition: all 250ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .key-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .key-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .key-card p {
+      font-size: 14px;
+      color: var(--text-sub);
+      line-height: 1.6;
+    }
+
+    .card-stat {
+      font-size: 32px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      margin-bottom: 8px;
+    }
+
+    /* Flow diagram pills */
+    .flow-chain {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 24px 0;
+      padding: 20px;
+      background: var(--card-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .flow-node {
+      background: #000;
+      border: 1px solid var(--border);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .flow-node strong {
+      color: #fff;
+    }
+
+    .flow-node span {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .flow-arrow {
+      color: var(--blue);
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    /* Code snippet box */
+    .code-box {
+      background: #050505;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #cfcfcf;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+
+    .code-box .kw { color: #ff7b72; font-weight: 600; }
+    .code-box .fn { color: #d2a8ff; }
+    .code-box .str { color: #a5d6ff; }
+    .code-box .cm { color: #8b949e; font-style: italic; }
+    .code-box .val { color: #79c0ff; }
+
+    /* Footer & Controls */
+    .deck-footer {
+      position: fixed;
+      bottom: 24px;
+      left: 0;
+      right: 0;
+      padding: 0 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .deck-footer * {
+      pointer-events: auto;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .footer-brand svg {
+      fill: #fff;
+      width: 16px;
+      height: 14px;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 6px 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+    }
+
+    .btn-nav {
+      background: transparent;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 150ms ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .btn-nav:hover {
+      color: #fff;
+      background: #1a1a1a;
+    }
+
+    .slide-counter {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      min-width: 50px;
+      text-align: center;
+    }
+
+    .btn-fs {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 4px 8px;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .btn-fs:hover {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="top-progress" id="progressBar"></div>
+
+  <div class="deck-container">
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 1: HERO / TITLE
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide active" data-index="1">
+      <div class="slide-badge blue">K4 Level 3A • Day 12 Lab</div>
+      <h1 class="slide-title">Cloud Service & Deployment<br>Cho AI Agent</h1>
+      <p class="slide-subtitle">
+        Từ một ứng dụng chạy thử trên <code>localhost:8000</code> đến một dịch vụ Cloud chuẩn mực cấp doanh nghiệp: Bảo mật tuyệt đối, bảo vệ chi phí, stateless và không gián đoạn dịch vụ.
+      </p>
+
+      <div class="grid-4" style="margin-top: 10px;">
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--green);">100%</div>
+          <h3>Mở Rộng Phi Trạng Thái</h3>
+          <p>Mở rộng ra nhiều container với Redis mà không mất ngữ cảnh hội thoại.</p>
+        </div>
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--cyan);">-72%</div>
+          <h3>Đóng Gói Tối Ưu</h3>
+          <p>Multi-stage build cắt giảm kích thước từ 1.03GB xuống còn 297MB.</p>
+        </div>
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--amber);">$10/tháng</div>
+          <h3>Kiểm Soát Chi Phí</h3>
+          <p>Chặn trước bằng HTTP 402 trước khi phát sinh chi phí token LLM.</p>
+        </div>
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--blue);">0 Gián Đoạn</div>
+          <h3>Cơ Chế Tắt Êm</h3>
+          <p>Bắt tín hiệu SIGTERM để bảo vệ request dở dang lúc triển khai.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 2: THE 5 DISASTERS (PROBLEM STATEMENT)
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="2">
+      <div class="slide-badge red">Thách Thức Thực Tế</div>
+      <h1 class="slide-title">5 "Cái Bẫy Chết Người" Khi Đưa Agent Lên Cloud</h1>
+      <p class="slide-subtitle">
+        Tại sao bê nguyên code từ máy tính cá nhân lên Cloud lại khiến 90% dự án AI Agent bị sập trong tuần đầu tiên?
+      </p>
+
+      <div class="grid-3">
+        <div class="key-card">
+          <h3 style="color: var(--red);">1. Hóa Đơn Tiền Triệu (Billing Shock)</h3>
+          <p>LLM tính tiền theo từng token. Mở API không bảo vệ ra mạng là mồi ngon cho botnet spam hàng vạn câu hỏi làm vỡ ngân sách trong vài phút.</p>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--amber);">2. Rò Rỉ Chìa Khóa (Secret Leaks)</h3>
+          <p>Lưu key trong code hay trong Docker image khiến chìa khóa lọt lên GitHub / Registry công khai ngay khi push.</p>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--purple);">3. Mất Trí Nhớ Khi Scale (Amnesia)</h3>
+          <p>Lưu lịch sử hội thoại trong RAM của Python. Khi chạy 3 server, câu hỏi 1 vào Máy A, câu 2 vào Máy B làm Agent ngơ ngác không biết khách hỏi gì.</p>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--cyan);">4. Sập Dây Chuyền (Cascading Crash)</h3>
+          <p>Gộp kiểm tra Redis vào Liveness Probe. Redis lag 10 giây làm Cloud tưởng app chết, tự động restart toàn bộ container.</p>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--blue);">5. Rớt Khách Khi Deploy (Downtime)</h3>
+          <p>Deploy bản mới 'giết' ngay container cũ. Người dùng đang nhận câu trả lời dở dang lập tức bị văng lỗi 502 Bad Gateway.</p>
+        </div>
+        <div class="key-card" style="border-color: rgba(0, 229, 153, 0.4); background: rgba(0, 229, 153, 0.03);">
+          <h3 style="color: var(--green);">Mục Tiêu Bài Lab</h3>
+          <p>Xây dựng hệ thống giải quyết triệt để 5 vấn đề trên theo kiến trúc <strong>12-Factor App & Cloud-Native Resilience</strong>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 3: END-TO-END REQUEST LIFECYCLE
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="3">
+      <div class="slide-badge cyan">Luồng Kiến Trúc Tổng Thể</div>
+      <h1 class="slide-title">Vòng Đời Của Một Request Tới Endpoint /ask</h1>
+      <p class="slide-subtitle">
+        Mọi request đều trải qua một dây chuyền kiểm soát đa tầng nghiêm ngặt trước khi chạm tới mô hình LLM.
+      </p>
+
+      <div class="flow-chain">
+        <div class="flow-node">
+          <strong>1. Client Request</strong>
+          <span>Header X-API-Key</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--red);">
+          <strong>2. Verify Auth</strong>
+          <span>Constant-time (401)</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--amber);">
+          <strong>3. Rate Limiter</strong>
+          <span>Sliding Window 60s (429)</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--purple);">
+          <strong>4. Cost Guard</strong>
+          <span>Check Budget USD (402)</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--blue);">
+          <strong>5. Redis Memory</strong>
+          <span>Get History by user_id</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--cyan);">
+          <strong>6. Call LLM</strong>
+          <span>Prompt + History</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--green);">
+          <strong>7. Record & Log</strong>
+          <span>Redis append x2 + JSON</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="key-card">
+          <h3 style="color: var(--cyan);">Quy Tắc: Chặn Trước — Gọi Sau</h3>
+          <p>Tiền mất ở bước gọi LLM. Nếu chặn sau khi gọi mô hình thì bạn vừa phải trả tiền token cho OpenAI vừa phải trả mã lỗi cho khách hàng.</p>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--green);">Đơn Vị Định Danh: User ID</h3>
+          <p>Mỗi khách hàng được cấp một hạn mức Rate Limit và một ngân sách Cost Guard riêng biệt, không ai ảnh hưởng đến ai.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 4: CP1 — CONFIG & LOGGING
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="4">
+      <div class="slide-badge blue">Checkpoint 1</div>
+      <h1 class="slide-title">12-Factor Config & Structured Logging</h1>
+      <p class="slide-subtitle">
+        Cấu hình không bao giờ nằm trong code và log phải được sinh ra cho máy móc đọc.
+      </p>
+
+      <div class="grid-2">
+        <div class="key-card">
+          <h3>Fail-Fast Configuration</h3>
+          <p style="margin-bottom: 12px;">Dùng <code>pydantic-settings</code> tự động nạp từ biến môi trường. Khóa <code>agent_api_key</code> bắt buộc không có giá trị mặc định.</p>
+          <div class="code-box">
+<span class="kw">class</span> <span class="fn">Settings</span>(BaseSettings):
+    port: <span class="val">int</span> = 8000
+    agent_api_key: <span class="val">str</span>  <span class="cm"># KHÔNG mặc định</span>
+    redis_url: <span class="val">str</span> = <span class="str">"redis://..."</span>
+          </div>
+          <p style="font-size: 12px; margin-top: 8px; color: var(--amber);">
+            ★ Thà app crash ngay lúc deploy còn hơn chạy với key mặc định "changeme".
+          </p>
+        </div>
+
+        <div class="key-card">
+          <h3>Single-Line Structured JSON Log</h3>
+          <p style="margin-bottom: 12px;">Thay thế hoàn toàn <code>print()</code> bằng JSON log một dòng trên stdout để các hệ thống Datadog/Loki dễ dàng phân tích.</p>
+          <div class="code-box">
+{
+  <span class="str">"event"</span>: <span class="str">"ask_completed"</span>,
+  <span class="str">"level"</span>: <span class="str">"info"</span>,
+  <span class="str">"timestamp"</span>: <span class="str">"2026-09-28T08:37:53Z"</span>,
+  <span class="str">"user_id"</span>: <span class="str">"sv01"</span>,
+  <span class="str">"cost_usd"</span>: <span class="val">0.00012</span>
+}
+          </div>
+          <p style="font-size: 12px; margin-top: 8px; color: var(--green);">
+            ★ Cho phép truy vấn: "User nào tiêu nhiều tiền nhất 1 giờ qua?".
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 5: CP2 — DOCKER MULTI-STAGE
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="5">
+      <div class="slide-badge cyan">Checkpoint 2</div>
+      <h1 class="slide-title">Đóng Gói Docker Chuẩn Production</h1>
+      <p class="slide-subtitle">
+        Tối ưu kích thước image, tăng tốc build với layer cache và loại bỏ hoàn toàn quyền root.
+      </p>
+
+      <div class="grid-3">
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--cyan);">297 MB</div>
+          <h3>Multi-stage Build</h3>
+          <p>Stage <code>builder</code> cài dependency và biên dịch, stage <code>runtime</code> dùng <code>python:3.11-slim</code> chỉ copy thư viện sang. Giảm hơn 700MB rác build.</p>
+        </div>
+
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--green);">&lt; 1s</div>
+          <h3>Layer Cache Optimization</h3>
+          <p>Đặt <code>COPY requirements.txt</code> và <code>RUN pip install</code> lên trước <code>COPY . .</code>. Sửa code ứng dụng không phải tải lại toàn bộ thư viện.</p>
+        </div>
+
+        <div class="key-card">
+          <div class="card-stat" style="color: var(--amber);">UID 10001</div>
+          <h3>Non-Root Security</h3>
+          <p>Tạo và chuyển sang <code>USER appuser</code>. Nếu kẻ tấn công khai thác được RCE trong code Python thì cũng không thể chiếm quyền root trên máy host.</p>
+        </div>
+      </div>
+
+      <div class="key-card" style="margin-top: 20px;">
+        <h3>Dynamic $PORT & Docker Compose Stack</h3>
+        <p>Lệnh chạy đọc cổng linh hoạt: <code>CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]</code>. File <code>docker-compose.yml</code> liên kết tự động Agent với Redis thông qua mạng nội bộ <code>redis://redis:6379/0</code>.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 6: CP3 — SECURITY & COST GUARD
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="6">
+      <div class="slide-badge amber">Checkpoint 3</div>
+      <h1 class="slide-title">Tấm Khiên Bảo Mật API & Ngân Sách</h1>
+      <p class="slide-subtitle">
+        Bảo vệ dịch vụ trước timing attack, bot spam tần suất cao và thảm họa vỡ nợ tiền token.
+      </p>
+
+      <div class="grid-3">
+        <div class="key-card">
+          <div class="slide-badge blue" style="margin-bottom:8px;">Auth</div>
+          <h3>Constant-time Compare</h3>
+          <p>Sử dụng <code>secrets.compare_digest</code> thay cho <code>==</code>. Toán tử thông thường dừng ở ký tự sai đầu tiên, khiến hacker đo được thời gian CPU phản hồi để dò khóa.</p>
+        </div>
+
+        <div class="key-card">
+          <div class="slide-badge amber" style="margin-bottom:8px;">Rate Limit</div>
+          <h3>Sliding Window (60s)</h3>
+          <p>Dùng Redis Sorted Set (ZSET) với timestamp làm score. Loại bỏ entry cũ hơn 60s. Khắc phục hoàn toàn lỗi gửi 20 request trong 2 giây (giây :59 và :00) của bộ đếm phút.</p>
+        </div>
+
+        <div class="key-card">
+          <div class="slide-badge red" style="margin-bottom:8px;">Cost Guard</div>
+          <h3>Monthly Budget Guard</h3>
+          <p>Cộng dồn chi phí USD theo tháng bằng <code>incrbyfloat</code>. Nếu vượt ngân sách $10/tháng, chặn lập tức với mã <strong>HTTP 402 Payment Required</strong> trước khi gọi LLM.</p>
+        </div>
+      </div>
+
+      <div class="flow-chain" style="margin-top: 20px;">
+        <span style="font-size: 13px; font-weight: 600; color: #fff;">Mã Lỗi Trả Về Chuẩn RESTful:</span>
+        <span class="slide-badge red" style="margin: 0;">401 Unauthorized</span>
+        <span class="slide-badge amber" style="margin: 0;">429 Too Many Requests</span>
+        <span class="slide-badge purple" style="margin: 0;">402 Payment Required</span>
+        <span class="slide-badge green" style="margin: 0;">200 OK (Thành công)</span>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 7: CP4 — STATELESS & RELIABILITY
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="7">
+      <div class="slide-badge purple">Checkpoint 4</div>
+      <h1 class="slide-title">Stateless Scaling & Graceful Shutdown</h1>
+      <p class="slide-subtitle">
+        Khả năng mở rộng quy mô không giới hạn và quy trình tắt server êm dịu, không gián đoạn.
+      </p>
+
+      <div class="grid-2">
+        <div class="key-card">
+          <h3>Stateless Architecture Với Redis</h3>
+          <p style="margin-bottom: 10px;">Lịch sử hội thoại được lưu tại Redis List (<code>history:&lt;user_id&gt;</code>). Áp dụng <code>ltrim</code> giữ 20 lượt gần nhất và <code>expire</code> tự dọn sau 7 ngày.</p>
+          <p style="color: var(--cyan); font-size: 13px;">
+            ✔ Bật 3 hay 100 container thì người dùng vẫn nói chuyện liền mạch khi chuyển máy chủ.
+          </p>
+        </div>
+
+        <div class="key-card">
+          <h3>Phân Tách Liveness vs Readiness</h3>
+          <ul style="font-size: 13px; color: var(--text-sub); list-style: none; display: flex; flex-direction: column; gap: 8px;">
+            <li><strong style="color: var(--green);">/health (Liveness):</strong> Process còn sống không? KHÔNG kiểm tra Redis. (Tránh restart cụm container khi DB lag).</li>
+            <li><strong style="color: var(--blue);">/ready (Readiness):</strong> Đã kết nối được Redis chưa? Kiểm tra <code>store.ping()</code> để nhận traffic.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="key-card" style="margin-top: 20px;">
+        <h3 style="color: var(--amber);">Graceful Shutdown (Bắt Tín Hiệu SIGTERM)</h3>
+        <p>Khi deploy bản mới, container nhận <code>SIGTERM</code> ➔ bật cờ <code>shutting_down = True</code> ➔ `/health` và `/ready` trả về HTTP 503 để load balancer ngừng đẩy khách mới vào ➔ server trả lời nốt các câu hỏi đang dang dở ➔ thoát an toàn (Zero-downtime).</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 8: CP5 & CI/CD PIPELINE
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="8">
+      <div class="slide-badge green">Checkpoint 5 & Bonus</div>
+      <h1 class="slide-title">Cloud Deployment & CI/CD Pipeline</h1>
+      <p class="slide-subtitle">
+        Triển khai tự động hóa qua GitHub Actions lên môi trường Cloud thực tế (Render / Railway).
+      </p>
+
+      <div class="flow-chain">
+        <div class="flow-node">
+          <strong>1. git push</strong>
+          <span>Nhánh main / PR</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--blue);">
+          <strong>2. Job Test (CI)</strong>
+          <span>Chạy pytest tự động</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--cyan);">
+          <strong>3. Job Build</strong>
+          <span>Build Docker Image</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--green);">
+          <strong>4. Job Deploy (CD)</strong>
+          <span>Cổng kiểm soát needs: [test]</span>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-node" style="border-color: var(--purple);">
+          <strong>5. Production</strong>
+          <span>Render / Railway HTTPS</span>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: 10px;">
+        <div class="key-card">
+          <h3>render.yaml Blueprint</h3>
+          <p>Tự động khởi tạo đồng thời Web Service Docker và Redis Service miễn phí, kết nối qua biến nội bộ <code>REDIS_URL</code>.</p>
+        </div>
+        <div class="key-card">
+          <h3>Cổng Chất Lượng (Quality Gate)</h3>
+          <p>Cấu hình <code>needs: [test, build]</code>. Bất kỳ bài test nào bị đỏ, GitHub Actions lập tức dừng lại, ngăn code lỗi lên Production.</p>
+        </div>
+        <div class="key-card">
+          <h3>Bảo Mật CI/CD Token</h3>
+          <p>Tuyệt đối không hardcode token trong YAML. Sử dụng <code>${{ secrets.DEPLOY_TOKEN }}</code> và ghim phiên bản action <code>@v4</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 9: SUMMARY & DEMO PREVIEW
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="9">
+      <div class="slide-badge green">Tổng Kết Thành Tựu</div>
+      <h1 class="slide-title">Bảng Điểm & Demo Hoàn Hảo</h1>
+      <p class="slide-subtitle">
+        Dự án đã hoàn thành toàn diện 100% mục tiêu của bài lab và tích hợp sẵn Dashboard giao diện Vercel.
+      </p>
+
+      <div class="grid-2">
+        <div class="key-card" style="border-color: rgba(0, 229, 153, 0.4);">
+          <h3 style="color: var(--green);">Kết Quả Kiểm Thử (grade.py)</h3>
+          <ul style="font-size: 14px; color: var(--text-sub); list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+            <li>✔ <strong>CP1 (Config & Health):</strong> 13/13 test pass (15/15 đ)</li>
+            <li>✔ <strong>CP2 (Docker & Compose):</strong> 16/16 test pass (15/15 đ)</li>
+            <li>✔ <strong>CP3 (Security & Cost):</strong> 22/22 test pass (20/20 đ)</li>
+            <li>✔ <strong>CP4 (Scaling & Shutdown):</strong> 19/19 test pass (20/20 đ)</li>
+            <li>✔ <strong>Exercises (Phiếu phản ánh):</strong> 10/10 câu hoàn thành (15/15 đ)</li>
+            <li style="color: #fff; font-weight: 600; border-top: 1px solid var(--border); padding-top: 8px;">
+              ➔ TỔNG ĐIỂM: 85.0 / 85.0 (100% ĐIỂM BẮT BUỘC)
+            </li>
+          </ul>
+        </div>
+
+        <div class="key-card">
+          <h3 style="color: var(--cyan);">Vercel UI Dashboard Tích Hợp</h3>
+          <p style="margin-bottom: 12px;">Đã xây dựng sẵn giao diện Dark Mode chuẩn Vercel kết nối trực tiếp backend tại <code>http://localhost:8085/</code>:</p>
+          <ul style="font-size: 13px; color: var(--text-sub); display: flex; flex-direction: column; gap: 6px; padding-left: 20px;">
+            <li>Agent chat tương tác thời gian thực kèm đo token và chi phí.</li>
+            <li>Nút mô phỏng bắn 12 request để kích hoạt Sliding Window 429.</li>
+            <li>Cửa sổ Terminal stream log JSON có cấu trúc thời gian thực.</li>
+            <li>Theo dõi Liveness và Readiness Probes.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SLIDE 10: CLOSING & Q&A
+         ══════════════════════════════════════════════════════════════ -->
+    <section class="slide" data-index="10">
+      <div class="slide-badge blue">Q & A Session</div>
+      <h1 class="slide-title">Cảm Ơn Thầy Cô Và Các Bạn!</h1>
+      <p class="slide-subtitle">
+        Hệ thống AI Agent hiện tại đã hoàn toàn sẵn sàng cho môi trường Production thực tế. Em rất sẵn lòng giải đáp mọi câu hỏi phản biện.
+      </p>
+
+      <div class="grid-3" style="margin-top: 20px;">
+        <div class="key-card">
+          <h3 style="color: var(--blue);">Họ Và Tên</h3>
+          <p style="font-size: 18px; color: #fff; font-weight: 600;">Võ Minh Quân</p>
+          <span style="font-size: 12px; color: var(--text-muted);">Mã HV: HV-DAY12</span>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--cyan);">Repository</h3>
+          <p style="font-size: 13px; font-family: var(--font-mono); color: #fff;">K4-L3A-Cloud-Service-And-Deployment</p>
+          <span style="font-size: 12px; color: var(--green);">Branch: main (Clean)</span>
+        </div>
+        <div class="key-card">
+          <h3 style="color: var(--green);">Ready for Live Demo</h3>
+          <p style="font-size: 14px; color: #fff;">Server đang chạy trên cổng <strong>8085</strong></p>
+          <span style="font-size: 12px; color: var(--text-muted);">Sẵn sàng test trực tiếp</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       FOOTER & KEYBOARD / BUTTON CONTROLS
+       ══════════════════════════════════════════════════════════════ -->
+  <footer class="deck-footer">
+    <div class="footer-brand">
+      <svg viewBox="0 0 75 65"><path d="M37.59.25l36.95 64H.64l36.95-64z"></path></svg>
+      <span>Day 12 Production Agent • Slide Flow</span>
+    </div>
+
+    <div class="nav-controls">
+      <button class="btn-nav" id="prevBtn" title="Phím mũi tên Trái">◀</button>
+      <div class="slide-counter" id="counterText">01 / 10</div>
+      <button class="btn-nav" id="nextBtn" title="Phím mũi tên Phải / Phím Cách">▶</button>
+      <button class="btn-fs" id="fsBtn" title="Toàn màn hình (F)">⛶</button>
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const slides = document.querySelectorAll('.slide');
+      const progressBar = document.getElementById('progressBar');
+      const counterText = document.getElementById('counterText');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const fsBtn = document.getElementById('fsBtn');
+
+      let currentSlide = 0;
+      const totalSlides = slides.length;
+
+      function updateSlide(index) {
+        if (index < 0) index = 0;
+        if (index >= totalSlides) index = totalSlides - 1;
+        currentSlide = index;
+
+        slides.forEach((s, idx) => {
+          s.classList.toggle('active', idx === currentSlide);
+        });
+
+        // Progress bar
+        const progress = ((currentSlide + 1) / totalSlides) * 100;
+        progressBar.style.width = `${progress}%`;
+
+        // Counter text
+        const curStr = String(currentSlide + 1).padStart(2, '0');
+        const totStr = String(totalSlides).padStart(2, '0');
+        counterText.textContent = `${curStr} / ${totStr}`;
+      }
+
+      function nextSlide() {
+        if (currentSlide < totalSlides - 1) updateSlide(currentSlide + 1);
+      }
+
+      function prevSlide() {
+        if (currentSlide > 0) updateSlide(currentSlide - 1);
+      }
+
+      nextBtn.addEventListener('click', nextSlide);
+      prevBtn.addEventListener('click', prevSlide);
+
+      // Keyboard Controls
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+          e.preventDefault();
+          nextSlide();
+        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+          e.preventDefault();
+          prevSlide();
+        } else if (e.key.toLowerCase() === 'f') {
+          toggleFullscreen();
+        } else if (e.key === 'Home') {
+          updateSlide(0);
+        } else if (e.key === 'End') {
+          updateSlide(totalSlides - 1);
+        }
+      });
+
+      // Fullscreen
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+
+      fsBtn.addEventListener('click', toggleFullscreen);
+
+      // Touch swipes for mobile/tablets
+      let touchStartX = 0;
+      document.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+      }, { passive: true });
+
+      document.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].screenX;
+        if (touchStartX - touchEndX > 50) nextSlide();
+        if (touchEndX - touchStartX > 50) prevSlide();
+      }, { passive: true });
+
+      // Init
+      updateSlide(0);
+    });
+  </script>
+</body>
+</html>
