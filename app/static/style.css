@@ -473,6 +473,21 @@ header.vercel-header {
   color: var(--text-muted);
 }
 
+.chat-input-bar input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.api-key-box.shake {
+  animation: shakeKey 400ms ease;
+}
+
+@keyframes shakeKey {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
 /* Buttons */
 .btn-primary {
   background: #ffffff;
