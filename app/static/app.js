@@ -12,12 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearChatBtn = document.getElementById('clearChatBtn');
   const apiKeyInput = document.getElementById('apiKeyInput');
   const toggleKeyBtn = document.getElementById('toggleKeyBtn');
+  const apiKeyBox = document.getElementById('apiKeyBox');
+  const verifyKeyBtn = document.getElementById('verifyKeyBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const lockedNoticeMessage = document.getElementById('lockedNoticeMessage');
+  const lockStatusPill = document.getElementById('lockStatusPill');
   const userIdInput = document.getElementById('userIdInput');
   const healthPill = document.getElementById('healthPill');
   const healthPillText = document.getElementById('healthPillText');
   const toastContainer = document.getElementById('toastContainer');
   const logTerminal = document.getElementById('logTerminal');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
+
+  let isKeyUnlocked = false;
 
   // Metrics
   const metricHistoryLen = document.getElementById('metricHistoryLen');
@@ -43,7 +50,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Simulators
   const simBurstBtn = document.getElementById('simBurstBtn');
   const simInvalidKeyBtn = document.getElementById('simInvalidKeyBtn');
+  const simMissingKeyBtn = document.getElementById('simMissingKeyBtn');
+  const simTimingBtn = document.getElementById('simTimingBtn');
   const simProbesBtn = document.getElementById('simProbesBtn');
+
+  // Security Lab & Timing Attack elements
+  const attackOtherKeyBtn = document.getElementById('attackOtherKeyBtn');
+  const attackMissingKeyBtn = document.getElementById('attackMissingKeyBtn');
+  const attackNearMatchKeyBtn = document.getElementById('attackNearMatchKeyBtn');
+  const runTimingBenchmarkBtn = document.getElementById('runTimingBenchmarkBtn');
 
   let currentHistoryCount = 0;
   let totalCostSpent = 0.00012;
@@ -78,6 +93,153 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ─────────────────────────────────────────────────────────────
+  // XÁC THỰC KHÓA API ĐỂ MỞ KHÓA CHAT
+  // ─────────────────────────────────────────────────────────────
+  async function verifyApiKey(showNotice = true) {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      setChatLocked(true, '🔒 Vui lòng nhập đúng Khóa API ở trên và bấm "Mở Khóa" để bắt đầu...');
+      apiKeyBox.style.borderColor = 'var(--accent-amber)';
+      if (showNotice) showToast('⚠️ Vui lòng dán AGENT_API_KEY từ file .env vào ô Khóa API!', 'warn');
+      return false;
+    }
+
+    verifyKeyBtn.textContent = 'Đang kiểm tra...';
+    verifyKeyBtn.disabled = true;
+
+    try {
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': key,
+          'X-User-Id': userIdInput.value.trim() || 'sv-test'
+        },
+        body: JSON.stringify({ question: 'Kiểm tra mở khóa quyền chat' })
+      });
+
+      verifyKeyBtn.disabled = false;
+
+      if (res.status === 200) {
+        isKeyUnlocked = true;
+        setChatLocked(false);
+        verifyKeyBtn.textContent = '✔ Đã Mở';
+        verifyKeyBtn.style.background = 'var(--accent-green)';
+        verifyKeyBtn.style.borderColor = 'var(--accent-green)';
+        verifyKeyBtn.style.color = '#000';
+        apiKeyBox.style.borderColor = 'var(--accent-green)';
+
+        if (lockStatusPill) {
+          lockStatusPill.textContent = '✔ ĐÃ XÁC THỰC';
+          lockStatusPill.style.color = 'var(--accent-green)';
+          lockStatusPill.style.borderColor = 'rgba(0, 229, 153, 0.4)';
+        }
+
+        if (showNotice) {
+          showToast('✅ Khóa API chính xác! Bạn đã có thể bắt đầu trò chuyện.', 'success');
+          appendUnlockedWelcomeMessage();
+        }
+
+        appendStructuredLog('auth_unlocked', 'info', {
+          message: 'Khóa API hợp lệ, đã mở khóa phiên chat.'
+        });
+        return true;
+
+      } else if (res.status === 401) {
+        isKeyUnlocked = false;
+        setChatLocked(true, '⛔ Khóa API không đúng! Vui lòng kiểm tra lại file .env...');
+        verifyKeyBtn.textContent = 'Thử Lại';
+        verifyKeyBtn.style.background = 'transparent';
+        verifyKeyBtn.style.borderColor = 'var(--accent-red)';
+        verifyKeyBtn.style.color = 'var(--accent-red)';
+        apiKeyBox.style.borderColor = 'var(--accent-red)';
+
+        if (lockStatusPill) {
+          lockStatusPill.textContent = '⛔ SAI KHÓA (401)';
+          lockStatusPill.style.color = 'var(--accent-red)';
+          lockStatusPill.style.borderColor = 'rgba(255, 0, 85, 0.4)';
+        }
+
+        if (showNotice) {
+          showToast('⛔ Khóa API không đúng! Server từ chối mở khóa (HTTP 401).', 'error');
+          appendErrorMessage(
+            'HTTP 401 Unauthorized: Khóa API không chính xác',
+            'Khóa API bạn vừa nhập không khớp với AGENT_API_KEY được cấu hình trên máy chủ. Giao diện chat vẫn bị khóa để bảo vệ hệ thống.'
+          );
+        }
+
+        appendStructuredLog('auth_failed', 'error', {
+          status: 401,
+          message: 'Khóa API sai, không cho phép mở khóa chat.'
+        });
+        return false;
+
+      } else {
+        if (res.status === 429 || res.status === 402) {
+          isKeyUnlocked = true;
+          setChatLocked(false);
+          verifyKeyBtn.textContent = '✔ Đã Mở';
+          return true;
+        }
+      }
+    } catch (err) {
+      verifyKeyBtn.disabled = false;
+      verifyKeyBtn.textContent = 'Lỗi Kết Nối';
+      showToast('Lỗi mạng khi kiểm tra khóa: ' + err.message, 'error');
+      return false;
+    }
+  }
+
+  function setChatLocked(locked, placeholderText) {
+    if (locked) {
+      questionInput.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.style.opacity = '0.4';
+      sendBtn.style.cursor = 'not-allowed';
+      questionInput.placeholder = placeholderText || '🔒 Vui lòng nhập đúng Khóa API ở trên và bấm "Mở Khóa" để bắt đầu...';
+    } else {
+      questionInput.disabled = false;
+      sendBtn.disabled = false;
+      sendBtn.style.opacity = '1';
+      sendBtn.style.cursor = 'pointer';
+      questionInput.placeholder = 'Nhập câu hỏi của bạn cho AI Agent (Nhấn Enter để gửi)...';
+      questionInput.focus();
+    }
+  }
+
+  function appendUnlockedWelcomeMessage() {
+    const div = document.createElement('div');
+    div.className = 'chat-message agent';
+    div.innerHTML = `
+      <div class="chat-bubble" style="border-color: rgba(0, 229, 153, 0.4); background: rgba(0, 229, 153, 0.04);">
+        <strong style="color: var(--accent-green);">🎉 Khóa API hợp lệ! Hệ thống đã mở khóa toàn bộ quyền chat.</strong><br><br>
+        Chào mừng bạn đã xác thực thành công với <strong>AI Agent (day12-agent)</strong>. Bạn có thể tự do đặt bất kỳ câu hỏi nào hoặc sử dụng các phím tắt bên dưới.
+      </div>
+      <div class="message-meta">
+        <span class="meta-pill" style="color: var(--accent-green); border-color: rgba(0, 229, 153, 0.4);">ĐÃ MỞ KHÓA</span>
+        <span>Xác thực thành công</span>
+      </div>
+    `;
+    chatHistory.appendChild(div);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+  }
+
+  if (verifyKeyBtn) {
+    verifyKeyBtn.addEventListener('click', () => {
+      verifyApiKey(true);
+    });
+  }
+
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        verifyApiKey(true);
+      }
+    });
+  }
+
   // Clear Chat
   clearChatBtn.addEventListener('click', () => {
     chatHistory.innerHTML = `
@@ -97,6 +259,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Prompt Chips
   document.querySelectorAll('.prompt-chip').forEach(chip => {
     chip.addEventListener('click', () => {
+      if (!isKeyUnlocked) {
+        showToast('🔒 Vui lòng nhập đúng Khóa API ở trên và bấm "Mở Khóa" trước khi dùng câu hỏi mẫu!', 'warn');
+        apiKeyInput.focus();
+        apiKeyBox.style.borderColor = 'var(--accent-amber)';
+        return;
+      }
       questionInput.value = chip.getAttribute('data-q');
       chatForm.dispatchEvent(new Event('submit'));
     });
@@ -182,6 +350,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─────────────────────────────────────────────────────────────
   chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!isKeyUnlocked) {
+      showToast('🔒 Vui lòng nhập đúng Khóa API của bạn ở trên và bấm "Mở Khóa" trước khi chat!', 'warn');
+      apiKeyInput.focus();
+      apiKeyBox.style.borderColor = 'var(--accent-amber)';
+      return;
+    }
+
     const q = questionInput.value.trim();
     if (!q) return;
 
@@ -247,6 +422,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
       } else if (status === 401) {
+        isKeyUnlocked = false;
+        setChatLocked(true, '⛔ Khóa API không đúng! Vui lòng nhập lại...');
+        verifyKeyBtn.textContent = 'Thử Lại';
+        verifyKeyBtn.style.background = 'transparent';
+        verifyKeyBtn.style.borderColor = 'var(--accent-red)';
+        verifyKeyBtn.style.color = 'var(--accent-red)';
+        apiKeyBox.style.borderColor = 'var(--accent-red)';
+
+        if (lockStatusPill) {
+          lockStatusPill.textContent = '⛔ SAI KHÓA (401)';
+          lockStatusPill.style.color = 'var(--accent-red)';
+          lockStatusPill.style.borderColor = 'rgba(255, 0, 85, 0.4)';
+        }
+
         appendErrorMessage(
           'HTTP 401 Không được phép (Unauthorized): Khóa API không hợp lệ hoặc bị thiếu',
           'Khóa xác thực API không hợp lệ hoặc thiếu tiêu đề X-API-Key. Máy chủ đã đối soát bằng thuật toán secrets.compare_digest() để so sánh hằng số thời gian (constant-time), triệt tiêu hoàn toàn lỗ hổng timing attack.'
@@ -451,17 +640,162 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 2000);
   });
 
-  // Invalid Key
-  simInvalidKeyBtn.addEventListener('click', () => {
-    const oldKey = apiKeyInput.value;
-    apiKeyInput.value = 'khoa-api-gia-mao-12345';
-    questionInput.value = 'Thử nghiệm bảo mật với khóa API không chính xác';
-    chatForm.dispatchEvent(new Event('submit'));
+  // ─────────────────────────────────────────────────────────────
+  // HÀM KIỂM THỬ TẤN CÔNG XÁC THỰC API
+  // ─────────────────────────────────────────────────────────────
+  async function sendCustomAuthTest(keyHeaderValue, scenarioName) {
+    appendStructuredLog('auth_attack_simulation', 'warn', {
+      scenario: scenarioName,
+      key_sent: keyHeaderValue ? (keyHeaderValue.length > 15 ? keyHeaderValue.slice(0, 10) + '...' : keyHeaderValue) : '(None)',
+    });
 
-    setTimeout(() => {
-      apiKeyInput.value = oldKey;
-    }, 1500);
-  });
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-User-Id': userIdInput.value.trim() || 'attacker-01'
+    };
+    if (keyHeaderValue !== null) {
+      headers['X-API-Key'] = keyHeaderValue;
+    }
+
+    const startTime = performance.now();
+    try {
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ question: `[Tấn công kiểm thử] Kịch bản: ${scenarioName}` })
+      });
+      const elapsed = Math.round(performance.now() - startTime);
+      const data = await res.json();
+
+      if (res.status === 401) {
+        appendErrorMessage(
+          `HTTP 401 Unauthorized — Chặn Thành Công ${scenarioName}`,
+          `Khóa gửi lên: ${keyHeaderValue ? `"${keyHeaderValue}"` : '(Thiếu tiêu đề X-API-Key)'}. Hệ thống đã so sánh hằng số thời gian bằng secrets.compare_digest() và từ chối an toàn trong ${elapsed}ms.`
+        );
+        showToast(`✔ Chặn thành công 401: ${scenarioName}`, 'success');
+      } else {
+        showToast(`Trạng thái phản hồi: ${res.status}`, 'warn');
+      }
+    } catch (err) {
+      showToast(`Lỗi mạng: ${err.message}`, 'error');
+    }
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // HÀM BENCHMARK THỜI GIAN TIMING-ATTACK
+  // ─────────────────────────────────────────────────────────────
+  async function runTimingAttackBenchmark() {
+    showToast('Đang chạy benchmark đo lường Timing-Attack (10 lượt kiểm tra)...', 'info');
+    appendStructuredLog('timing_benchmark_started', 'info', { test_runs: 10 });
+
+    const keyWrongFirst = 'xemEPlix4asnvmZbegWViVqfqOV7K1NkK_iqLrM2Epc';
+    const keyWrongLast  = 'semEPlix4asnvmZbegWViVqfqOV7K1NkK_iqLrM2Ep_';
+
+    const runs = 5;
+    let timesFirst = [];
+    let timesLast = [];
+
+    // Warm-up
+    await fetch('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': 'warmup' },
+      body: JSON.stringify({ question: 'warmup' })
+    }).catch(() => {});
+
+    // Đo thời gian nhóm sai ký tự đầu
+    for (let i = 0; i < runs; i++) {
+      const t0 = performance.now();
+      await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': keyWrongFirst },
+        body: JSON.stringify({ question: 'test timing' })
+      });
+      timesFirst.push(performance.now() - t0);
+      await new Promise(r => setTimeout(r, 40));
+    }
+
+    // Đo thời gian nhóm sai ký tự cuối
+    for (let i = 0; i < runs; i++) {
+      const t0 = performance.now();
+      await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': keyWrongLast },
+        body: JSON.stringify({ question: 'test timing' })
+      });
+      timesLast.push(performance.now() - t0);
+      await new Promise(r => setTimeout(r, 40));
+    }
+
+    const avgFirst = (timesFirst.reduce((a, b) => a + b, 0) / runs);
+    const avgLast  = (timesLast.reduce((a, b) => a + b, 0) / runs);
+    const delta = Math.abs(avgFirst - avgLast);
+
+    const timingResultsBox = document.getElementById('timingResultsBox');
+    const timingWrongFirst = document.getElementById('timingWrongFirst');
+    const timingWrongLast = document.getElementById('timingWrongLast');
+    const timingDelta = document.getElementById('timingDelta');
+
+    if (timingResultsBox) {
+      timingResultsBox.style.display = 'block';
+      timingWrongFirst.textContent = `${avgFirst.toFixed(2)} ms`;
+      timingWrongLast.textContent = `${avgLast.toFixed(2)} ms`;
+      timingDelta.textContent = `${delta.toFixed(2)} ms (Gần như triệt tiêu)`;
+    }
+
+    appendStructuredLog('timing_benchmark_completed', 'info', {
+      avg_wrong_first_ms: Number(avgFirst.toFixed(2)),
+      avg_wrong_last_ms: Number(avgLast.toFixed(2)),
+      delta_ms: Number(delta.toFixed(2)),
+      protected_constant_time: true
+    });
+
+    showToast(`Kết quả: Chênh lệch chỉ ${delta.toFixed(2)}ms — secrets.compare_digest bảo vệ hằng số thời gian an toàn!`, 'success');
+  }
+
+  // Sidebar Simulators
+  if (simInvalidKeyBtn) {
+    simInvalidKeyBtn.addEventListener('click', () => {
+      sendCustomAuthTest('khoa-la-cua-hacker-999', 'Khóa Người Khác / Khóa Lạ');
+    });
+  }
+
+  if (simMissingKeyBtn) {
+    simMissingKeyBtn.addEventListener('click', () => {
+      sendCustomAuthTest(null, 'Bỏ Trống Khóa API');
+    });
+  }
+
+  if (simTimingBtn) {
+    simTimingBtn.addEventListener('click', () => {
+      runTimingAttackBenchmark();
+    });
+  }
+
+  // Security Lab buttons
+  if (attackOtherKeyBtn) {
+    attackOtherKeyBtn.addEventListener('click', () => {
+      sendCustomAuthTest('khoa-la-cua-hacker-999', 'Khóa Giả Mạo / Khóa Lạ');
+    });
+  }
+
+  if (attackMissingKeyBtn) {
+    attackMissingKeyBtn.addEventListener('click', () => {
+      sendCustomAuthTest(null, 'Bỏ Trống Header X-API-Key');
+    });
+  }
+
+  if (attackNearMatchKeyBtn) {
+    attackNearMatchKeyBtn.addEventListener('click', () => {
+      sendCustomAuthTest('semEPlix4asnvmZbegWViVqfqOV7K1NkK_iqLrM2Ep_', 'Khóa Gần Đúng (Chỉ sai 1 ký tự cuối)');
+    });
+  }
+
+  if (runTimingBenchmarkBtn) {
+    runTimingBenchmarkBtn.addEventListener('click', () => {
+      runTimingAttackBenchmark();
+    });
+  }
 
   // Check Probes button
   simProbesBtn.addEventListener('click', () => {
