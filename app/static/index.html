@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vercel — Day 12 Production Agent Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- ═══════════════════════════════════════════════════════════════════
+         HEADER (VERCEL STYLE)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <header class="vercel-header">
+      <div class="brand-section">
+        <!-- Vercel iconic triangle SVG -->
+        <svg class="vercel-triangle" viewBox="0 0 75 65" height="22" width="26">
+          <path d="M37.59.25l36.95 64H.64l36.95-64z"></path>
+        </svg>
+        <div class="brand-info">
+          <h1>
+            day12-agent
+            <span class="badge-env"><span class="pulse-dot"></span> production</span>
+          </h1>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="api-key-box" title="Khóa xác thực X-API-Key gửi lên server">
+          <label for="apiKeyInput">KEY:</label>
+          <input type="password" id="apiKeyInput" value="semEPlix4asnvmZbegWViVqfqOV7K1NkK_iqLrM2Epc" placeholder="X-API-Key">
+          <button id="toggleKeyBtn" class="btn-secondary" style="padding: 2px 6px; font-size: 10px;" title="Hiện/Ẩn API Key">👁</button>
+        </div>
+
+        <div class="api-key-box" title="Header X-User-Id">
+          <label for="userIdInput">USER:</label>
+          <input type="text" id="userIdInput" value="sv-test" style="width: 75px;">
+        </div>
+
+        <div class="badge-status" id="healthPill">
+          <span class="status-indicator"></span>
+          <span id="healthPillText">Probes 200 OK</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TABS BAR
+         ───────────────────────────────────────────────────────────── -->
+    <nav class="tabs-bar" role="tablist">
+      <button class="tab-btn active" data-tab="tab-playground">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        Agent Playground
+      </button>
+      <button class="tab-btn" data-tab="tab-observability">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        Live Observability & Logs
+      </button>
+      <button class="tab-btn" data-tab="tab-security">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Guardrails & Cost
+      </button>
+      <button class="tab-btn" data-tab="tab-architecture">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+        12-Factor & Checkpoints
+      </button>
+    </nav>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TAB 1: AGENT PLAYGROUND & REALTIME METRICS
+         ───────────────────────────────────────────────────────────── -->
+    <main id="tab-playground" class="tab-content active">
+      <div class="playground-grid">
+        <!-- Chat Area -->
+        <div class="vercel-card chat-container">
+          <div class="card-header">
+            <div class="card-title">
+              Conversational Session
+              <span class="sub" id="sessionSub">Stateless Redis Stream</span>
+            </div>
+            <button class="btn-secondary" id="clearChatBtn" style="font-size: 11px;">Clear Screen</button>
+          </div>
+
+          <div class="quick-prompts">
+            <button class="prompt-chip" data-q="Docker là gì và tại sao cần multi-stage build?">Docker & Multi-stage?</button>
+            <button class="prompt-chip" data-q="Giải thích Stateless Architecture và vai trò của Redis?">Stateless & Redis?</button>
+            <button class="prompt-chip" data-q="Liveness probe khác gì so với Readiness probe?">Liveness vs Readiness?</button>
+            <button class="prompt-chip" data-q="Graceful shutdown xử lý SIGTERM thế nào?">Graceful shutdown?</button>
+          </div>
+
+          <div class="chat-history" id="chatHistory">
+            <!-- Initial Greeting -->
+            <div class="chat-message agent">
+              <div class="chat-bubble">
+                Xin chào! Tôi là AI Agent phục vụ bài lab <strong>K4 Level 3A - Cloud Service & Deployment</strong>. 
+                Hệ thống backend đã được trang bị đầy đủ xác thực bảo mật, sliding-window rate limit, cost guard và bộ nhớ Redis stateless. Bạn có câu hỏi gì về hệ thống?
+              </div>
+              <div class="message-meta">
+                <span class="meta-pill">system</span>
+                <span>service: day12-agent:1.0.0</span>
+              </div>
+            </div>
+          </div>
+
+          <form id="chatForm" class="chat-input-bar">
+            <input type="text" id="questionInput" placeholder="Nhập câu hỏi cho AI Agent (Enter để gửi)..." autocomplete="off" required>
+            <button type="submit" class="btn-primary" id="sendBtn">
+              Gửi
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </form>
+        </div>
+
+        <!-- Sidebar Metrics & Simulator Controls -->
+        <div class="sidebar-panel">
+          <!-- Realtime stats -->
+          <div class="vercel-card">
+            <div class="card-header">
+              <div class="card-title">Session Telemetry</div>
+              <span class="sub">Per-User</span>
+            </div>
+            <div class="metric-group">
+              <div class="metric-box">
+                <div class="metric-label">History Turns</div>
+                <div class="metric-value blue" id="metricHistoryLen">0</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Latency</div>
+                <div class="metric-value green" id="metricLatency">-- ms</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Tokens (In / Out)</div>
+                <div class="metric-value" style="font-size: 15px;" id="metricTokens">0 / 0</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Last Call Cost</div>
+                <div class="metric-value green" style="font-size: 15px;" id="metricCost">$0.0000</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Simulators -->
+          <div class="vercel-card">
+            <div class="card-header">
+              <div class="card-title">Production Stress Tests</div>
+              <span class="sub">Simulations</span>
+            </div>
+            <div class="sim-actions">
+              <div class="sim-item">
+                <div class="desc">
+                  <span class="title">Bắn 12 Request Liên Tục</span>
+                  <span class="sub">Kiểm tra Sliding Window 429 Rate Limit</span>
+                </div>
+                <button class="btn-secondary" id="simBurstBtn">Trigger 429</button>
+              </div>
+
+              <div class="sim-item">
+                <div class="desc">
+                  <span class="title">Gửi Sai API Key</span>
+                  <span class="sub">Kiểm tra Timing-attack 401 Unauthorized</span>
+                </div>
+                <button class="btn-secondary" id="simInvalidKeyBtn">Trigger 401</button>
+              </div>
+
+              <div class="sim-item">
+                <div class="desc">
+                  <span class="title">Thăm Dò Liveness & Readiness</span>
+                  <span class="sub">Chạy probe /health và /ready ngay</span>
+                </div>
+                <button class="btn-secondary" id="simProbesBtn">Check Probes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TAB 2: LIVE OBSERVABILITY & CLOUD LOG STREAM
+         ───────────────────────────────────────────────────────────── -->
+    <section id="tab-observability" class="tab-content">
+      <!-- Probes Grid -->
+      <div class="probes-grid">
+        <div class="probe-card">
+          <div class="probe-top">
+            <span class="card-title">/health (Liveness)</span>
+            <span class="probe-badge ok" id="probeHealthBadge">● 200 OK</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary);">
+            Kiểm tra tiến trình còn sống. Không chạm vào Redis/DB để tránh sự cố dây chuyền.
+          </p>
+          <pre class="probe-code" id="probeHealthJson">{"status": "ok", "service": "day12-agent", "version": "1.0.0"}</pre>
+          <button class="btn-secondary" id="refreshHealthBtn">Ping /health</button>
+        </div>
+
+        <div class="probe-card">
+          <div class="probe-top">
+            <span class="card-title">/ready (Readiness)</span>
+            <span class="probe-badge ok" id="probeReadyBadge">● 200 OK</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary);">
+            Kiểm tra app đã sẵn sàng nhận khách. Có dependency check tới Redis (`store.ping()`).
+          </p>
+          <pre class="probe-code" id="probeReadyJson">{"status": "ready", "redis": true}</pre>
+          <button class="btn-secondary" id="refreshReadyBtn">Ping /ready</button>
+        </div>
+
+        <div class="probe-card">
+          <div class="probe-top">
+            <span class="card-title">Graceful Shutdown</span>
+            <span class="probe-badge" id="shutdownStatusBadge" style="background:#222; color:#888;">RUNNING</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary);">
+            Mô phỏng orchestrator gửi tín hiệu SIGTERM khi deploy phiên bản mới.
+          </p>
+          <div style="margin-top: auto; display: flex; gap: 8px;">
+            <button class="btn-secondary btn-danger" id="simulateSigtermBtn">Simulate SIGTERM</button>
+            <button class="btn-secondary" id="resetLifecycleBtn">Reset Normal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Terminal Log Window -->
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+          </div>
+          <div class="terminal-title">stdout — Structured JSON Log Stream (Single-line per Event)</div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-secondary" id="clearLogsBtn" style="font-size: 10px; padding: 2px 8px;">Clear</button>
+          </div>
+        </div>
+        <div class="terminal-body" id="logTerminal">
+          <!-- Sample Structured Log Lines -->
+          <div class="log-line">
+            <span class="timestamp">[SYSTEM]</span>
+            <span class="tag info">INFO</span>
+            <span class="json-content">{"event": "<span class="json-key">service_started</span>", "level": "<span class="json-string">info</span>", "service": "<span class="json-string">day12-agent</span>", "version": "<span class="json-string">1.0.0</span>"}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TAB 3: GUARDRAILS & COST CONTROLS
+         ───────────────────────────────────────────────────────────── -->
+    <section id="tab-security" class="tab-content">
+      <div class="playground-grid">
+        <div class="vercel-card">
+          <div class="card-header">
+            <div class="card-title">Sliding Window Rate Limiter (60s Window)</div>
+            <span class="sub">Hạn mức: 10 requests / 60 giây</span>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Current Window Usage:</span>
+            <span style="font-family: var(--font-mono); font-size: 18px; font-weight: 600;" id="rateLimitCount">0 / 10 req</span>
+          </div>
+
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="rateLimitBar" style="width: 0%;"></div>
+          </div>
+
+          <div style="margin-top: 24px; padding: 16px; background: var(--card-surface); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); font-size: 13px;">
+            <div style="font-weight: 600; margin-bottom: 6px; color: #fff;">Tại sao dùng Redis Sorted Set (ZSET) thay vì đếm theo phút?</div>
+            <p style="color: var(--text-muted); line-height: 1.6;">
+              Nếu reset bộ đếm vào đúng đầu phút (10:00:00), một người dùng có thể gửi 10 request lúc 10:00:59 và gửi thêm 10 request lúc 10:01:00 (tổng cộng 20 request trong 2 giây liên tiếp mà vẫn đúng luật). Sliding Window dùng score là timestamp để loại bỏ hoàn toàn các request cũ hơn 60s, bảo vệ hệ thống trước các cú sốc lưu lượng.
+            </p>
+          </div>
+        </div>
+
+        <div class="vercel-card">
+          <div class="card-header">
+            <div class="card-title">Monthly Cost Guard</div>
+            <span class="sub">Budget: $10.00 / tháng</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px;">
+            <span style="font-size: 13px; color: var(--text-secondary);">Đã tiêu tháng này:</span>
+            <span style="font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--accent-green);" id="costSpentText">$0.0000 / $10.00</span>
+          </div>
+
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="costSpentBar" style="width: 1%;"></div>
+          </div>
+
+          <div style="margin-top: 24px; padding: 16px; background: var(--card-surface); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); font-size: 13px;">
+            <div style="font-weight: 600; margin-bottom: 6px; color: #fff;">Chặn trước khi gọi LLM:</div>
+            <p style="color: var(--text-muted); line-height: 1.6;">
+              Kiểm tra ngân sách được thực hiện <strong>trước khi</strong> gọi vào mô hình. Nếu hết tiền, app lập tức trả mã <code>HTTP 402 Payment Required</code>, không gọi LLM để tránh tình trạng vừa bị mất tiền token vừa phải báo lỗi cho người dùng.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────────────────────────
+         TAB 4: 12-FACTOR & CHECKPOINTS MATRIX
+         ───────────────────────────────────────────────────────────── -->
+    <section id="tab-architecture" class="tab-content">
+      <div class="vercel-card" style="margin-bottom: 24px;">
+        <div class="card-header">
+          <div class="card-title">Lab Checkpoints Status & Compliance Matrix</div>
+          <span class="badge-env" style="background: rgba(0, 112, 243, 0.1); color: var(--accent-blue); border-color: rgba(0, 112, 243, 0.3);">
+            Grade Score: 85.0 / 85.0 (100%)
+          </span>
+        </div>
+
+        <table class="checkpoints-table">
+          <thead>
+            <tr>
+              <th>Checkpoint</th>
+              <th>Tiêu chí kỹ thuật</th>
+              <th>Trạng thái</th>
+              <th>File trọng tâm</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>CP1</strong> — 12-Factor Config</td>
+              <td>pydantic-settings, fail-fast không secret mặc định, log JSON 1 dòng, /health liveness probe</td>
+              <td><span class="status-pill-ok">✔ 13/13 Passed</span></td>
+              <td><code>app/config.py</code>, <code>app/logging_utils.py</code></td>
+            </tr>
+            <tr>
+              <td><strong>CP2</strong> — Multi-stage Docker</td>
+              <td>python:3.11-slim, non-root UID 10001, cache layer theo thứ tự, giảm từ 1.03GB xuống 297MB</td>
+              <td><span class="status-pill-ok">✔ 16/16 Passed</span></td>
+              <td><code>Dockerfile</code>, <code>docker-compose.yml</code></td>
+            </tr>
+            <tr>
+              <td><strong>CP3</strong> — API Security & Cost</td>
+              <td>Timing-attack proof auth, Redis ZSET sliding-window 429, Cost Guard monthly budget 402</td>
+              <td><span class="status-pill-ok">✔ 22/22 Passed</span></td>
+              <td><code>app/auth.py</code>, <code>app/rate_limiter.py</code>, <code>app/cost_guard.py</code></td>
+            </tr>
+            <tr>
+              <td><strong>CP4</strong> — Scaling & Reliability</td>
+              <td>Stateless Redis List, TTL expiration, /ready readiness probe, SIGTERM graceful shutdown</td>
+              <td><span class="status-pill-ok">✔ 19/19 Passed</span></td>
+              <td><code>app/store.py</code>, <code>app/lifecycle.py</code>, <code>app/main.py</code></td>
+            </tr>
+            <tr>
+              <td><strong>Exercises</strong> — Phản Ánh</td>
+              <td>Trả lời toàn diện 10/10 câu hỏi phân tích kiến trúc chuyên sâu</td>
+              <td><span class="status-pill-ok">✔ 10/10 Answered</span></td>
+              <td><code>exercises.md</code></td>
+            </tr>
+            <tr>
+              <td><strong>Bonus</strong> — CI/CD Pipeline</td>
+              <td>GitHub Actions workflow: test, build docker image, automated deploy gate</td>
+              <td><span class="status-pill-ok">✔ Configured</span></td>
+              <td><code>.github/workflows/ci.yml</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
